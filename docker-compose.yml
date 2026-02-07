@@ -2,10 +2,8 @@ services:
   openstock:
     build:
       context: .
-      extra_hosts:
-        - "mongodb:host-gateway"
     ports:
-      - "3000:3000"
+      - "3001:3000"
     env_file:
       - .env
     restart: unless-stopped

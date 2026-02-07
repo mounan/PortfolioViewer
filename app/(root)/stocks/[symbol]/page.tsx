@@ -9,7 +9,7 @@ import {
     COMPANY_FINANCIALS_WIDGET_CONFIG,
 } from "@/lib/constants";
 
-import { auth } from '@/lib/better-auth/auth';
+import { getAuth } from '@/lib/better-auth/auth';
 import { headers } from 'next/headers';
 import { isStockInWatchlist } from '@/lib/actions/watchlist.actions';
 
@@ -17,8 +17,10 @@ export default async function StockDetails({ params }: StockDetailsPageProps) {
     const { symbol } = await params;
     const scriptUrl = `https://s3.tradingview.com/external-embedding/embed-widget-`;
 
+    const requestHeaders = await headers();
+    const auth = await getAuth();
     const session = await auth.api.getSession({
-        headers: await headers()
+        headers: requestHeaders
     });
     const userId = session?.user?.id;
     const isInWatchlist = userId ? await isStockInWatchlist(userId, symbol) : false;
