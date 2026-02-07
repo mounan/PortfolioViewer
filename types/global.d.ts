@@ -245,6 +245,52 @@ declare global {
         avgCost?: number;
         currency?: string;
     };
+
+    type HoldingMarketSnapshot = {
+        symbol: string;
+        price: number | null;
+        change: number | null;
+        changePercent: number | null;
+        currency: string | null;
+        afterHoursPrice: number | null;
+    };
+
+    type PortfolioValuationItem = {
+        holdingId: string;
+        symbol: string;
+        exchange: string;
+        company: string;
+        quantity: number;
+        avgCost: number;
+        currency: string;
+        currentPrice: number | null;
+        afterHoursPrice: number | null;
+        changePercent: number | null;
+        fxRateToBase: number | null;
+        marketValueLocal: number | null;
+        costValueLocal: number | null;
+        unrealizedPnlLocal: number | null;
+        marketValueBase: number | null;
+        costValueBase: number | null;
+        unrealizedPnlBase: number | null;
+    };
+
+    type PortfolioValuationSummary = {
+        baseCurrency: string;
+        totalHoldings: number;
+        pricedHoldings: number;
+        totalMarketValueBase: number;
+        totalCostBase: number;
+        totalUnrealizedPnlBase: number;
+        missingFxCurrencies: string[];
+        missingPriceSymbols: string[];
+    };
+
+    type PortfolioValuationResult = {
+        baseCurrency: string;
+        items: PortfolioValuationItem[];
+        summary: PortfolioValuationSummary;
+    };
 }
 
 export {};

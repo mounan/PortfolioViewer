@@ -6,6 +6,13 @@ import { cache } from 'react';
 
 const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
 const NEXT_PUBLIC_FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY ?? '';
+const FX_CACHE_TTL_MS = 5 * 60 * 1000;
+const fxRateCache = new Map<string, { rate: number | null; expiresAt: number }>();
+
+type FinnhubForexRatesResponse = {
+    base?: string;
+    quote?: Record<string, number>;
+};
 
 async function fetchJSON<T>(url: string, revalidateSeconds?: number): Promise<T> {
     const options: RequestInit & { next?: { revalidate?: number } } = revalidateSeconds
@@ -21,6 +28,28 @@ async function fetchJSON<T>(url: string, revalidateSeconds?: number): Promise<T>
 }
 
 export { fetchJSON };
+
+const isFiniteNumber = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isFinite(value);
+
+const extractAfterHoursPrice = (quote: Record<string, unknown> | null): number | null => {
+    if (!quote) return null;
+
+    const candidates = [
+        quote.ap,
+        quote.afterHoursPrice,
+        quote.afterHours,
+        quote.extendedPrice,
+        quote.postMarketPrice,
+    ];
+
+    for (const candidate of candidates) {
+        if (isFiniteNumber(candidate) && candidate > 0) {
+            return candidate;
+        }
+    }
+    return null;
+};
 
 export async function getQuote(symbol: string) {
     try {
@@ -70,6 +99,101 @@ export async function getWatchlistData(symbols: string[]) {
     });
 
     return await Promise.all(promises);
+}
+
+export async function getQuoteSnapshot(symbol: string): Promise<HoldingMarketSnapshot | null> {
+    try {
+        const [quote, profile] = await Promise.all([getQuote(symbol), getCompanyProfile(symbol)]);
+
+        if (!quote) return null;
+
+        return {
+            symbol: symbol.toUpperCase(),
+            price: isFiniteNumber(quote.c) ? quote.c : null,
+            change: isFiniteNumber(quote.d) ? quote.d : null,
+            changePercent: isFiniteNumber(quote.dp) ? quote.dp : null,
+            currency: typeof profile?.currency === 'string' ? profile.currency : null,
+            afterHoursPrice: extractAfterHoursPrice(quote as Record<string, unknown>),
+        };
+    } catch (error) {
+        console.error('Error building quote snapshot for', symbol, error);
+        return null;
+    }
+}
+
+export async function getHoldingsMarketSnapshots(symbols: string[]): Promise<HoldingMarketSnapshot[]> {
+    const uniqueSymbols = [...new Set((symbols || []).map((s) => s.trim().toUpperCase()).filter(Boolean))];
+    if (uniqueSymbols.length === 0) return [];
+
+    const snapshots = await Promise.all(uniqueSymbols.map((symbol) => getQuoteSnapshot(symbol)));
+    return snapshots.filter((snapshot): snapshot is HoldingMarketSnapshot => Boolean(snapshot));
+}
+
+function cacheFxRate(key: string, rate: number | null) {
+    fxRateCache.set(key, { rate, expiresAt: Date.now() + FX_CACHE_TTL_MS });
+}
+
+function getCachedFxRate(key: string): number | null | undefined {
+    const entry = fxRateCache.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiresAt) {
+        fxRateCache.delete(key);
+        return undefined;
+    }
+    return entry.rate;
+}
+
+async function fetchFxRateDirect(baseCurrency: string, targetCurrency: string): Promise<number | null> {
+    if (!NEXT_PUBLIC_FINNHUB_API_KEY) return null;
+    const url =
+        `${FINNHUB_BASE_URL}/forex/rates?base=${encodeURIComponent(baseCurrency)}&token=${NEXT_PUBLIC_FINNHUB_API_KEY}`;
+    const response = await fetchJSON<FinnhubForexRatesResponse>(url, 300);
+    const maybeRate = response?.quote?.[targetCurrency];
+    return isFiniteNumber(maybeRate) ? maybeRate : null;
+}
+
+export async function getFxRate(fromCurrency: string, toCurrency: string = 'JPY'): Promise<number | null> {
+    const from = fromCurrency.trim().toUpperCase();
+    const to = toCurrency.trim().toUpperCase();
+    const cacheKey = `${from}_${to}`;
+
+    if (from === to) return 1;
+
+    const cached = getCachedFxRate(cacheKey);
+    if (cached !== undefined) return cached;
+
+    if (!NEXT_PUBLIC_FINNHUB_API_KEY) {
+        cacheFxRate(cacheKey, null);
+        return null;
+    }
+
+    try {
+        const directRate = await fetchFxRateDirect(from, to);
+        if (directRate !== null) {
+            cacheFxRate(cacheKey, directRate);
+            return directRate;
+        }
+
+        if (from !== 'USD' && to !== 'USD') {
+            const [fromToUsd, usdToTarget] = await Promise.all([
+                fetchFxRateDirect(from, 'USD'),
+                fetchFxRateDirect('USD', to),
+            ]);
+
+            if (fromToUsd !== null && usdToTarget !== null) {
+                const crossRate = fromToUsd * usdToTarget;
+                cacheFxRate(cacheKey, crossRate);
+                return crossRate;
+            }
+        }
+
+        cacheFxRate(cacheKey, null);
+        return null;
+    } catch (error) {
+        console.error(`Error fetching FX rate ${from}->${to}:`, error);
+        cacheFxRate(cacheKey, null);
+        return null;
+    }
 }
 
 

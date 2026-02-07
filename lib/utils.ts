@@ -119,6 +119,15 @@ export const formatPrice = (price: number) => {
 // Alias for consistency
 export const formatCurrency = formatPrice;
 
+export const formatMoney = (amount: number, currency: string = 'USD', locale: string = 'en-US') => {
+    return new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(amount);
+};
+
 export function formatNumber(num: number): string {
     // If number is small (likely already in millions from Finnhub), multiply by 1M to get actual value
     // Typical mega-cap is > 100B. 100B in millions is 100,000.
