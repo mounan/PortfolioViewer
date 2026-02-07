@@ -215,6 +215,36 @@ declare global {
         threshold: number;
         changePercent?: number;
     };
+
+    type HoldingRecord = {
+        _id: string;
+        userId: string;
+        symbol: string;
+        exchange: string;
+        company: string;
+        quantity: number;
+        avgCost: number;
+        currency: string;
+        createdAt: string;
+        updatedAt: string;
+    };
+
+    type HoldingCreateInput = {
+        symbol: string;
+        exchange: string;
+        company: string;
+        quantity: number;
+        avgCost: number;
+        currency: string;
+    };
+
+    type HoldingUpdateInput = {
+        id: string;
+        company?: string;
+        quantity?: number;
+        avgCost?: number;
+        currency?: string;
+    };
 }
 
 export {};
