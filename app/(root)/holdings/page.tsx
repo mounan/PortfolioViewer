@@ -6,6 +6,7 @@ import { buildPortfolioValuation } from "@/lib/services/portfolio/compute";
 import PortfolioSummaryCards from "@/components/holdings/PortfolioSummaryCards";
 import HoldingsTable from "@/components/holdings/HoldingsTable";
 import HoldingFormDialog from "@/components/holdings/HoldingFormDialog";
+import HoldingsHeatmap from "@/components/holdings/HoldingsHeatmap";
 
 export const metadata: Metadata = {
     title: "Portfolio | Portfolio Viewer",
@@ -42,6 +43,7 @@ export default async function HoldingsPage() {
             </header>
 
             <PortfolioSummaryCards summary={valuation.summary} />
+            <HoldingsHeatmap items={valuation.items} baseCurrency={valuation.baseCurrency} />
             <HoldingsTable items={valuation.items} baseCurrency={valuation.baseCurrency} />
         </div>
     );
